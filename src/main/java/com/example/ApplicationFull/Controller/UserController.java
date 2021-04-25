@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 import javax.validation.Valid;
 
 import com.example.ApplicationFull.Entity.User;
+import com.example.ApplicationFull.Exception.UsernameOrIdNotFound;
 import com.example.ApplicationFull.Repository.RoleRepository;
 import com.example.ApplicationFull.Service.UserService;
 import com.example.ApplicationFull.dto.ChangePasswordForm;
@@ -146,7 +147,7 @@ public class UserController {
     public String deleteUser(Model model, @PathVariable(name = "id")Long id){
         try {
             uService.deleteUser(id);
-        } catch (Exception e) {
+        } catch (UsernameOrIdNotFound e) {
             model.addAttribute("listErrorMessage", e.getMessage());
         }
         return userForm(model);

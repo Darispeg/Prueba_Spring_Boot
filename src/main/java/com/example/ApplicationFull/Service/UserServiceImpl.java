@@ -3,6 +3,7 @@ package com.example.ApplicationFull.Service;
 import java.util.Optional;
 
 import com.example.ApplicationFull.Entity.User;
+import com.example.ApplicationFull.Exception.UsernameOrIdNotFound;
 import com.example.ApplicationFull.Repository.UserRepository;
 import com.example.ApplicationFull.dto.ChangePasswordForm;
 
@@ -12,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service("UserService")
@@ -23,6 +25,9 @@ public class UserServiceImpl implements UserService{
 
 	@Autowired
 	BCryptPasswordEncoder bCryptPasswordEncoder;
+
+	@Autowired
+	PasswordEncoder passwordEncoder;
 
 	@Override
 	public Iterable<User> getAllUsers() {
@@ -57,8 +62,8 @@ public class UserServiceImpl implements UserService{
 	}
 
 	@Override
-	public User getUserById(Long id) throws Exception {
-		return userRepository.findById(id).orElseThrow(() -> new Exception("El usuario que busca no existe "));
+	public User getUserById(Long id) throws UsernameOrIdNotFound {
+		return userRepository.findById(id).orElseThrow(() -> new UsernameOrIdNotFound("El username o Id del Usuario que busca no existe "));
 	}
 
 	@Override
@@ -83,7 +88,7 @@ public class UserServiceImpl implements UserService{
 
 	@Override
 	@PreAuthorize("hasAnyRole('ROLE_ADMIN')") // Para Controlar roles a nivel de Rest o Capa
-	public void deleteUser(Long id) throws Exception {
+	public void deleteUser(Long id) throws UsernameOrIdNotFound {
 		User user = getUserById(id);
 		
 		userRepository.delete(user);
@@ -92,22 +97,22 @@ public class UserServiceImpl implements UserService{
 	@Override
 	public User changePassword(ChangePasswordForm form) throws Exception {
 		User user = getUserById(form.getId());
-
-		if (!isLoggedUserADMIN() && !user.getPassword().equals(form.getCurrentPassword())) {
-			throw new Exception ("Current Password invalid");
-		} 
-
-		if(user.getPassword().equals(form.getNewPassword())){
-			throw new Exception("El nuevo Password debe ser diferente al Password actual");
+		
+		/*encoder.matches("123456", passwd)*/
+		if ( !isLoggedUserADMIN() && ! passwordEncoder.matches(form.getCurrentPassword(), user.getPassword())) {
+			throw new Exception ("Current Password invalido.");
 		}
 
-		if(!form.getNewPassword().equals(form.getConfirmPassword())){
-			throw new Exception("Nuevo password y Confirmar Nuevo Password no coinciden");
+		if(passwordEncoder.matches(form.getNewPassword(), user.getPassword())) {
+			throw new Exception ("Nuevo debe ser diferente al password actual.");
 		}
-
+		
+		if( !form.getNewPassword().equals(form.getConfirmPassword())) {
+			throw new Exception ("Nuevo Password y Confirm Password no coinciden.");
+		}
+		
 		String encodePassword = bCryptPasswordEncoder.encode(form.getNewPassword());
 		user.setPassword(encodePassword);
-
 		return userRepository.save(user);
 	}
 
@@ -127,5 +132,18 @@ public class UserServiceImpl implements UserService{
 					.findFirst().orElse(null); //loggedUser = null;
 		}
 		return roles != null ?true :false;
+	}
+
+	public User getLoggedUser() throws Exception{
+		Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+
+		UserDetails loggedUser = null;
+
+		if (principal instanceof UserDetails) {
+			loggedUser = (UserDetails) principal;
+		}
+		User myUser = 
+				userRepository.findByUsername(loggedUser.getUsername()).orElseThrow(() -> new Exception("Problemas obteniento usuario d eSecion."));
+		return myUser;
 	}
 }
